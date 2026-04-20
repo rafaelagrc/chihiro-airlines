@@ -1,6 +1,7 @@
 # agent.py
+import json
 import os
-import anthropic
+from groq import Groq
 from tools.profile import load_profile, profile_to_prompt, PROFILE_PATH
 from tools.memory import save_memory, load_memories
 from tools.search import web_search
@@ -9,74 +10,83 @@ from db.schema import DB_PATH, init_db
 
 TOOLS = [
     {
-        "name": "web_search",
-        "description": (
-            "Search the web for current travel information. Use for: free walking tours "
-            "(always search — schedules change), opening hours, 'best X in Y' queries, "
-            "and any time-sensitive info. Answer from knowledge first; search when unsure."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search query"}
-            },
-            "required": ["query"]
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": (
+                "Search the web for current travel information. Use for: free walking tours "
+                "(always search — schedules change), opening hours, 'best X in Y' queries, "
+                "and any time-sensitive info. Answer from knowledge first; search when unsure."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"}
+                },
+                "required": ["query"]
+            }
         }
     },
     {
-        "name": "save_memory",
-        "description": (
-            "Save a notable travel preference or experience the user mentions. "
-            "Examples: 'Loved Mercado da Ribeira', 'Prefer morning visits to crowded sites'."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "fact": {"type": "string", "description": "The memory to save"},
-                "destination": {"type": "string", "description": "City or country (optional)"}
-            },
-            "required": ["fact"]
+        "type": "function",
+        "function": {
+            "name": "save_memory",
+            "description": (
+                "Save a notable travel preference or experience the user mentions. "
+                "Examples: 'Loved Mercado da Ribeira', 'Prefer morning visits to crowded sites'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "fact": {"type": "string", "description": "The memory to save"},
+                    "destination": {"type": "string", "description": "City or country (optional)"}
+                },
+                "required": ["fact"]
+            }
         }
     },
     {
-        "name": "build_itinerary",
-        "description": (
-            "Build a structured day-by-day itinerary and display it in the itinerary panel. "
-            "Call this when the user asks for an itinerary or trip plan."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "destination": {"type": "string"},
-                "days": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "day_number": {"type": "integer"},
-                            "label": {"type": "string"},
-                            "entries": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "time": {"type": "string"},
-                                        "name": {"type": "string"},
-                                        "type": {
-                                            "type": "string",
-                                            "enum": ["food", "culture", "walking_tour", "nature", "viewpoint"]
+        "type": "function",
+        "function": {
+            "name": "build_itinerary",
+            "description": (
+                "Build a structured day-by-day itinerary and display it in the itinerary panel. "
+                "Call this when the user asks for an itinerary or trip plan."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "destination": {"type": "string"},
+                    "days": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "day_number": {"type": "integer"},
+                                "label": {"type": "string"},
+                                "entries": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "time": {"type": "string"},
+                                            "name": {"type": "string"},
+                                            "type": {
+                                                "type": "string",
+                                                "enum": ["food", "culture", "walking_tour", "nature", "viewpoint"]
+                                            },
+                                            "notes": {"type": "string"}
                                         },
-                                        "notes": {"type": "string"}
-                                    },
-                                    "required": ["name", "type"]
+                                        "required": ["name", "type"]
+                                    }
                                 }
-                            }
-                        },
-                        "required": ["day_number", "entries"]
+                            },
+                            "required": ["day_number", "entries"]
+                        }
                     }
-                }
-            },
-            "required": ["destination", "days"]
+                },
+                "required": ["destination", "days"]
+            }
         }
     }
 ]
@@ -113,37 +123,37 @@ async def run_agent(
     db_path: str = DB_PATH,
 ) -> tuple[str, str | None]:
     """
-    Run the Claude agent loop for a user message.
+    Run the Groq agent loop for a user message.
     Returns (response_text, itinerary_html | None).
     """
     init_db(db_path)
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
     system_prompt = build_system_prompt(profile_path=profile_path, db_path=db_path)
-    messages = [{"role": "user", "content": user_message}]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
     itinerary_html = None
 
     while True:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             max_tokens=4096,
-            system=system_prompt,
-            tools=TOOLS,
             messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
         )
 
-        if response.stop_reason == "end_turn":
-            text = "".join(
-                block.text for block in response.content if hasattr(block, "text")
-            )
-            return text, itinerary_html
+        choice = response.choices[0]
 
-        if response.stop_reason == "tool_use":
+        if choice.finish_reason == "stop":
+            return choice.message.content or "", itinerary_html
+
+        if choice.finish_reason == "tool_calls":
             tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-                name = block.name
-                inputs = block.input
+            for tool_call in choice.message.tool_calls:
+                name = tool_call.function.name
+                inputs = json.loads(tool_call.function.arguments)
 
                 if name == "web_search":
                     result = web_search(inputs["query"])
@@ -158,10 +168,14 @@ async def run_agent(
                     result = f"Unknown tool: {name}"
 
                 tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
                     "content": result,
                 })
 
-            messages.append({"role": "assistant", "content": response.content})
-            messages.append({"role": "user", "content": tool_results})
+            messages.append({
+                "role": "assistant",
+                "content": choice.message.content,
+                "tool_calls": choice.message.tool_calls,
+            })
+            messages.extend(tool_results)
