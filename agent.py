@@ -106,6 +106,10 @@ def build_system_prompt(profile_path: str = PROFILE_PATH, db_path: str = DB_PATH
         "- Always search for free walking tours — schedules change frequently.\n"
         "- When you learn something notable about their preferences, call save_memory.\n"
         "- When asked for a trip plan or itinerary, call build_itinerary.\n"
+        "- **Always proactively suggest at least 3 restaurant recommendations** whenever a "
+        "destination is mentioned, even if the traveler did not explicitly ask for restaurants. "
+        "Base suggestions on their food preferences. Include the restaurant name, cuisine type, "
+        "and a brief reason why it matches their taste.\n"
     )
 
     if memories:
