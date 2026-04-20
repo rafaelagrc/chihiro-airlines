@@ -137,7 +137,7 @@ async def run_agent(
 
     while True:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             max_tokens=4096,
             messages=messages,
             tools=TOOLS,
@@ -177,6 +177,16 @@ async def run_agent(
             messages.append({
                 "role": "assistant",
                 "content": choice.message.content,
-                "tool_calls": choice.message.tool_calls,
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in choice.message.tool_calls
+                ],
             })
             messages.extend(tool_results)
