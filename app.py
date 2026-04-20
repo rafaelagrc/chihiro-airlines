@@ -13,6 +13,7 @@ PROFILE_FILE = Path(PROFILE_PATH)
 
 @cl.on_chat_start
 async def on_chat_start():
+    cl.user_session.set("history", [])
     if not PROFILE_FILE.exists():
         await _run_onboarding()
     else:
@@ -23,7 +24,6 @@ async def on_chat_start():
                 "free walking tours, food spots, viewpoints, and experiences tailored to you two."
             )
         ).send()
-        await _send_restaurant_suggestions()
 
 async def _run_onboarding():
     await cl.Message(
@@ -82,20 +82,13 @@ async def _run_onboarding():
             "Now tell me where you're headed and I'll get planning!"
         )
     ).send()
-    await _send_restaurant_suggestions()
-
-async def _send_restaurant_suggestions():
-    """Proactively suggest restaurants based on the traveler's food preferences."""
-    response_text, _ = await run_agent(
-        "Based on my food preferences, suggest a few restaurants I should look out for on my travels. "
-        "Give me at least 3 recommendations with the restaurant name, cuisine, and why it suits my taste."
-    )
-    await cl.Message(content=f"🍽️ **Restaurant picks you might love:**\n\n{response_text}").send()
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    response_text, itinerary_html = await run_agent(message.content)
+    history = cl.user_session.get("history", [])
+    response_text, itinerary_html, updated_history = await run_agent(message.content, history=history)
+    cl.user_session.set("history", updated_history)
 
     await cl.Message(content=response_text).send()
 
