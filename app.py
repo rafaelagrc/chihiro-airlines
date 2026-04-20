@@ -37,24 +37,36 @@ async def _run_onboarding():
         content="What are your names? (e.g. 'Rafaela and João')",
         timeout=120
     ).send()
+    if res is None:
+        await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
+        return
     names = [n.strip() for n in res["output"].replace(" and ", ",").split(",") if n.strip()]
 
     res = await cl.AskUserMessage(
         content="What are your main travel interests? (e.g. culture, history, nature, food)",
         timeout=120
     ).send()
+    if res is None:
+        await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
+        return
     interests = [i.strip() for i in res["output"].split(",") if i.strip()]
 
     res = await cl.AskUserMessage(
         content="What kinds of food do you love? (e.g. local, Japanese, Vietnamese, street food)",
         timeout=120
     ).send()
+    if res is None:
+        await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
+        return
     food = [f.strip() for f in res["output"].split(",") if f.strip()]
 
     res = await cl.AskUserMessage(
         content="Anything you're NOT into? (e.g. nightlife, spicy food) — or type 'nothing'",
         timeout=120
     ).send()
+    if res is None:
+        await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
+        return
     not_into_raw = res["output"].strip()
     not_into = [] if not_into_raw.lower() == "nothing" else [n.strip() for n in not_into_raw.split(",") if n.strip()]
 
