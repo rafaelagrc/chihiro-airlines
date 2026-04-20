@@ -137,7 +137,7 @@ async def run_agent(
 
     while True:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama3-groq-70b-8192-tool-use-preview",
             max_tokens=4096,
             messages=messages,
             tools=TOOLS,
