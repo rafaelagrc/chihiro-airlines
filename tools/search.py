@@ -3,8 +3,7 @@ import os
 from tavily import TavilyClient
 
 def web_search(query: str) -> str:
-    api_key = os.environ.get("TAVILY_API_KEY", "")
-    client = TavilyClient(api_key=api_key)
+    client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
     response = client.search(query, max_results=5)
     results = response.get("results", [])
     if not results:
