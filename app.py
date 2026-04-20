@@ -23,6 +23,7 @@ async def on_chat_start():
                 "free walking tours, food spots, viewpoints, and experiences tailored to you two."
             )
         ).send()
+        await _send_restaurant_suggestions()
 
 async def _run_onboarding():
     await cl.Message(
@@ -81,6 +82,16 @@ async def _run_onboarding():
             "Now tell me where you're headed and I'll get planning!"
         )
     ).send()
+    await _send_restaurant_suggestions()
+
+async def _send_restaurant_suggestions():
+    """Proactively suggest restaurants based on the traveler's food preferences."""
+    response_text, _ = await run_agent(
+        "Based on my food preferences, suggest a few restaurants I should look out for on my travels. "
+        "Give me at least 3 recommendations with the restaurant name, cuisine, and why it suits my taste."
+    )
+    await cl.Message(content=f"🍽️ **Restaurant picks you might love:**\n\n{response_text}").send()
+
 
 @cl.on_message
 async def on_message(message: cl.Message):
