@@ -19,3 +19,9 @@ def load_memories(db_path: str = DB_PATH) -> list[dict]:
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return rows
+
+def clear_memories(db_path: str = DB_PATH) -> None:
+    conn = sqlite3.connect(db_path)
+    conn.execute("DELETE FROM memories")
+    conn.commit()
+    conn.close()
