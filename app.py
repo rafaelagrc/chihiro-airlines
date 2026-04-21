@@ -93,7 +93,4 @@ async def on_message(message: cl.Message):
     await cl.Message(content=response_text).send()
 
     if itinerary_html:
-        await cl.Message(
-            content="",
-            elements=[cl.Html(name="itinerary", content=itinerary_html, display="inline")]
-        ).send()
+        await cl.Message(content=itinerary_html).send()

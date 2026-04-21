@@ -5,7 +5,7 @@ from groq import Groq
 from tools.profile import load_profile, profile_to_prompt, PROFILE_PATH
 from tools.memory import save_memory, load_memories
 from tools.search import web_search
-from tools.itinerary import build_itinerary, render_itinerary_html
+from tools.itinerary import build_itinerary, render_itinerary_markdown
 from db.schema import DB_PATH, init_db
 
 TOOLS = [
@@ -106,9 +106,8 @@ def build_system_prompt(profile_path: str = PROFILE_PATH, db_path: str = DB_PATH
         "- Always search for free walking tours — schedules change frequently.\n"
         "- When you learn something notable about their preferences, call save_memory.\n"
         "- When asked for a trip plan or itinerary, call build_itinerary.\n"
-        "- When a destination is mentioned, suggest relevant restaurants that match their food "
-        "preferences. Include the restaurant name, cuisine type, and a brief reason why it matches "
-        "their taste.\n"
+        "- Always use web_search to find restaurants, food markets, and street food spots — "
+        "never suggest specific venues from memory as they may be closed, moved, or fabricated.\n"
     )
 
     if memories:
@@ -173,7 +172,7 @@ async def run_agent(
                     result = "Memory saved."
                 elif name == "build_itinerary":
                     itinerary = build_itinerary(inputs["destination"], inputs["days"])
-                    itinerary_html = render_itinerary_html(itinerary)
+                    itinerary_html = render_itinerary_markdown(itinerary)
                     result = "Itinerary built and displayed."
                 else:
                     result = f"Unknown tool: {name}"
