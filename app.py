@@ -1,42 +1,67 @@
-# app.py
 import json
 import os
+import re
 from pathlib import Path
 import chainlit as cl
 from dotenv import load_dotenv
 from agent import run_agent
-from tools.profile import PROFILE_PATH
+from tools.memory import clear_memories
 
 load_dotenv()
 
-PROFILE_FILE = Path(PROFILE_PATH)
+DATA_DIR = os.getenv("DATA_DIR", ".")
+
+
+def _sanitize_nickname(raw: str) -> str:
+    sanitized = re.sub(r"[^a-z0-9_-]", "", raw.strip().lower().replace(" ", "_"))
+    return sanitized or "traveler"
+
+
+def _user_paths(nickname: str) -> tuple[str, str]:
+    db_path = f"{DATA_DIR}/db/{nickname}.db"
+    profile_path = f"{DATA_DIR}/profiles/{nickname}.json"
+    return db_path, profile_path
+
 
 @cl.on_chat_start
 async def on_chat_start():
     cl.user_session.set("history", [])
-    if not PROFILE_FILE.exists():
-        await _run_onboarding()
+
+    res = await cl.AskUserMessage(
+        content="Hi! I'm **Chihiro** ✈ What's your name or nickname? I'll use it to remember you across visits.",
+        timeout=120,
+    ).send()
+    if res is None:
+        await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
+        return
+
+    nickname = _sanitize_nickname(res["output"])
+    db_path, profile_path = _user_paths(nickname)
+    cl.user_session.set("db_path", db_path)
+    cl.user_session.set("profile_path", profile_path)
+
+    if not Path(profile_path).exists():
+        await _run_onboarding(profile_path)
     else:
         await cl.Message(
             content=(
-                "Hi! I'm **Chihiro**, your travel planning assistant ✈\n\n"
-                "Tell me where you're headed and I'll suggest the best places to stay, "
-                "free walking tours, food spots, viewpoints, and experiences tailored to you two."
+                f"Welcome back, **{nickname}**! I remember you ✈\n\n"
+                "Tell me where you're headed and I'll get planning. "
+                "Type **/new** any time to start fresh for a new destination."
             )
         ).send()
 
-async def _run_onboarding():
+
+async def _run_onboarding(profile_path: str):
     await cl.Message(
         content=(
-            "Welcome! I'm **Chihiro**, your travel planning assistant ✈\n\n"
             "Let's set up your profile so I can personalise recommendations. "
             "I'll ask a few quick questions."
         )
     ).send()
 
     res = await cl.AskUserMessage(
-        content="What are your names? (e.g. 'Rafaela and João')",
-        timeout=120
+        content="What are your names? (e.g. 'Rafaela and João')", timeout=120
     ).send()
     if res is None:
         await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
@@ -45,7 +70,7 @@ async def _run_onboarding():
 
     res = await cl.AskUserMessage(
         content="What are your main travel interests? (e.g. culture, history, nature, food)",
-        timeout=120
+        timeout=120,
     ).send()
     if res is None:
         await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
@@ -54,7 +79,7 @@ async def _run_onboarding():
 
     res = await cl.AskUserMessage(
         content="What kinds of food do you love? (e.g. local, Japanese, Vietnamese, street food)",
-        timeout=120
+        timeout=120,
     ).send()
     if res is None:
         await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
@@ -63,31 +88,57 @@ async def _run_onboarding():
 
     res = await cl.AskUserMessage(
         content="Anything you're NOT into? (e.g. nightlife, spicy food) — or type 'nothing'",
-        timeout=120
+        timeout=120,
     ).send()
     if res is None:
         await cl.Message(content="Setup timed out. Refresh the page to try again.").send()
         return
     not_into_raw = res["output"].strip()
-    not_into = [] if not_into_raw.lower() == "nothing" else [n.strip() for n in not_into_raw.split(",") if n.strip()]
+    not_into = (
+        []
+        if not_into_raw.lower() == "nothing"
+        else [n.strip() for n in not_into_raw.split(",") if n.strip()]
+    )
 
     profile = {"travelers": names, "interests": interests, "food": food, "not_into": not_into}
-    PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PROFILE_FILE.write_text(json.dumps(profile, indent=2))
+    Path(profile_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(profile_path).write_text(json.dumps(profile, indent=2))
 
     await cl.Message(
         content=(
             f"Profile saved! I know you as **{' & '.join(names)}** — "
             f"interested in {', '.join(interests)} with a love for {', '.join(food[:3])} food.\n\n"
-            "Now tell me where you're headed and I'll get planning!"
+            "Now tell me where you're headed and I'll get planning! "
+            "Type **/new** any time to start fresh for a new destination."
         )
     ).send()
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    db_path = cl.user_session.get("db_path")
+    profile_path = cl.user_session.get("profile_path")
+
+    if not db_path or not profile_path:
+        await cl.Message(content="Session not initialized. Please refresh the page.").send()
+        return
+
+    if message.content.strip() == "/new":
+        if Path(db_path).exists():
+            clear_memories(db_path=db_path)
+        cl.user_session.set("history", [])
+        await cl.Message(
+            content=(
+                "Starting fresh! Your profile is saved — I still know your preferences. "
+                "Where are we headed next?"
+            )
+        ).send()
+        return
+
     history = cl.user_session.get("history", [])
-    response_text, itinerary_html, updated_history = await run_agent(message.content, history=history)
+    response_text, itinerary_html, updated_history = await run_agent(
+        message.content, history=history, profile_path=profile_path, db_path=db_path
+    )
     cl.user_session.set("history", updated_history)
 
     await cl.Message(content=response_text).send()
