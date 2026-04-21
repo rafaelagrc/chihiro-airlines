@@ -32,3 +32,7 @@ def test_profile_to_prompt_contains_interests():
 def test_profile_to_prompt_is_string():
     profile = {"travelers": [], "interests": [], "food": [], "not_into": []}
     assert isinstance(profile_to_prompt(profile), str)
+
+def test_load_profile_missing_file_returns_empty_dict():
+    result = load_profile("/tmp/definitely_does_not_exist_chihiro_abc123.json")
+    assert result == {}

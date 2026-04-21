@@ -3,8 +3,11 @@ import json
 PROFILE_PATH = "profile/interests.json"
 
 def load_profile(path: str = PROFILE_PATH) -> dict:
-    with open(path) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 def profile_to_prompt(profile: dict) -> str:
     travelers = ", ".join(profile.get("travelers", []))
