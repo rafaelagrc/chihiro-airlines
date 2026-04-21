@@ -11,6 +11,22 @@ TYPE_ICONS = {
 def build_itinerary(destination: str, days: list[dict]) -> dict:
     return {"destination": destination, "days": days}
 
+def render_itinerary_markdown(itinerary: dict) -> str:
+    destination = itinerary["destination"]
+    lines = [f"### ✈ {destination} Itinerary\n"]
+    for day in itinerary["days"]:
+        label = day.get("label", "")
+        heading = f"Day {day['day_number']}" + (f" — {label}" if label else "")
+        lines.append(f"**{heading}**")
+        for entry in day.get("entries", []):
+            icon = TYPE_ICONS.get(entry["type"], "📌")
+            time = f"`{entry['time']}` " if entry.get("time") else ""
+            badge = " 🆓 Free tour" if entry["type"] == "walking_tour" else ""
+            notes = f" — *{entry['notes']}*" if entry.get("notes") else ""
+            lines.append(f"- {time}{icon} {entry['name']}{badge}{notes}")
+        lines.append("")
+    return "\n".join(lines)
+
 def render_itinerary_html(itinerary: dict) -> str:
     destination = itinerary["destination"]
     days = itinerary["days"]

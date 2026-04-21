@@ -5,7 +5,7 @@ from groq import Groq
 from tools.profile import load_profile, profile_to_prompt, PROFILE_PATH
 from tools.memory import save_memory, load_memories
 from tools.search import web_search
-from tools.itinerary import build_itinerary, render_itinerary_html
+from tools.itinerary import build_itinerary, render_itinerary_markdown
 from db.schema import DB_PATH, init_db
 
 TOOLS = [
@@ -106,10 +106,8 @@ def build_system_prompt(profile_path: str = PROFILE_PATH, db_path: str = DB_PATH
         "- Always search for free walking tours — schedules change frequently.\n"
         "- When you learn something notable about their preferences, call save_memory.\n"
         "- When asked for a trip plan or itinerary, call build_itinerary.\n"
-        "- **Always proactively suggest at least 3 restaurant recommendations** whenever a "
-        "destination is mentioned, even if the traveler did not explicitly ask for restaurants. "
-        "Base suggestions on their food preferences. Include the restaurant name, cuisine type, "
-        "and a brief reason why it matches their taste.\n"
+        "- Always use web_search to find restaurants, food markets, and street food spots — "
+        "never suggest specific venues from memory as they may be closed, moved, or fabricated.\n"
     )
 
     if memories:
@@ -123,18 +121,20 @@ def build_system_prompt(profile_path: str = PROFILE_PATH, db_path: str = DB_PATH
 
 async def run_agent(
     user_message: str,
+    history: list[dict] | None = None,
     profile_path: str = PROFILE_PATH,
     db_path: str = DB_PATH,
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, list[dict]]:
     """
     Run the Groq agent loop for a user message.
-    Returns (response_text, itinerary_html | None).
+    Returns (response_text, itinerary_html | None, updated_history).
     """
     init_db(db_path)
     client = Groq(api_key=os.environ["GROQ_API_KEY"])
     system_prompt = build_system_prompt(profile_path=profile_path, db_path=db_path)
     messages = [
         {"role": "system", "content": system_prompt},
+        *(history or []),
         {"role": "user", "content": user_message},
     ]
     itinerary_html = None
@@ -152,7 +152,12 @@ async def run_agent(
         choice = response.choices[0]
 
         if choice.finish_reason == "stop":
-            return choice.message.content or "", itinerary_html
+            response_text = choice.message.content or ""
+            updated_history = list(history or []) + [
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": response_text},
+            ]
+            return response_text, itinerary_html, updated_history
 
         if choice.finish_reason == "tool_calls":
             tool_results = []
@@ -167,7 +172,7 @@ async def run_agent(
                     result = "Memory saved."
                 elif name == "build_itinerary":
                     itinerary = build_itinerary(inputs["destination"], inputs["days"])
-                    itinerary_html = render_itinerary_html(itinerary)
+                    itinerary_html = render_itinerary_markdown(itinerary)
                     result = "Itinerary built and displayed."
                 else:
                     result = f"Unknown tool: {name}"
