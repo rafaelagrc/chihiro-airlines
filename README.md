@@ -3,8 +3,8 @@ title: Chihiro Airlines
 emoji: ✈️
 colorFrom: blue
 colorTo: indigo
-sdk: chainlit
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: false
 ---
 
@@ -91,7 +91,7 @@ uv run pytest
 
 ## Deploying to Hugging Face Spaces
 
-1. Create a new Space at huggingface.co/new-space — SDK: **Chainlit**, Visibility: **Public**
+1. Create a new Space at huggingface.co/new-space — SDK: **Docker**, Visibility: **Public**
 2. In Space **Settings → Storage**, click **Enable Persistent Storage**
 3. In Space **Settings → Variables and secrets**, add:
    - `GROQ_API_KEY` — your Groq key (mark as **secret**)
