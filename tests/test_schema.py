@@ -39,3 +39,9 @@ def test_init_db_is_idempotent():
         init_db(db_path)  # calling twice should not raise
     finally:
         os.unlink(db_path)
+
+def test_init_db_creates_parent_directories():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        nested_path = os.path.join(tmpdir, "a", "b", "test.db")
+        init_db(nested_path)
+        assert os.path.exists(nested_path)

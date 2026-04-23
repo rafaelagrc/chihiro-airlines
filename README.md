@@ -1,3 +1,13 @@
+---
+title: Chihiro Airlines
+emoji: ✈️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Chihiro Airlines ✈
 
 A personal AI travel assistant that knows your interests and helps you plan vacations — finding the best places to stay, free walking tours, local food spots, viewpoints, and experiences.
@@ -78,3 +88,20 @@ Edit `profile/interests.json` at any time:
 ```bash
 uv run pytest
 ```
+
+## Deploying to Hugging Face Spaces
+
+1. Create a new Space at huggingface.co/new-space — SDK: **Docker**, Visibility: **Public**
+2. In Space **Settings → Storage**, click **Enable Persistent Storage**
+3. In Space **Settings → Variables and secrets**, add:
+   - `GROQ_API_KEY` — your Groq key (mark as **secret**)
+   - `TAVILY_API_KEY` — your Tavily key (mark as **secret**)
+   - `DATA_DIR` — value `/data` (plain variable)
+4. Push to the Space's git remote:
+   ```bash
+   git remote add space https://huggingface.co/spaces/<your-username>/chihiro-airlines
+   git push space main
+   ```
+5. The Space builds automatically. Share the URL — anyone can use it.
+
+Each visitor picks a nickname on first visit. Their profile and memories are stored in `/data/` and survive restarts and redeployments.

@@ -213,3 +213,4 @@ db/chihiro.db
 CLAUDE.md
 .claude/
 chainlit.md
+.worktrees/

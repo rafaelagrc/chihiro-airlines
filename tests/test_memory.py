@@ -1,7 +1,7 @@
 import tempfile
 import os
 from db.schema import init_db
-from tools.memory import save_memory, load_memories
+from tools.memory import save_memory, load_memories, clear_memories
 
 def make_test_db():
     f = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -43,5 +43,15 @@ def test_load_memories_empty_db():
     try:
         memories = load_memories(db_path=db_path)
         assert memories == []
+    finally:
+        os.unlink(db_path)
+
+def test_clear_memories_empties_table():
+    db_path = make_test_db()
+    try:
+        save_memory("Loved Nishiki Market", destination="Kyoto", db_path=db_path)
+        save_memory("Prefer morning visits", db_path=db_path)
+        clear_memories(db_path=db_path)
+        assert load_memories(db_path=db_path) == []
     finally:
         os.unlink(db_path)
