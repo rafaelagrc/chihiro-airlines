@@ -4,8 +4,10 @@ import re
 from pathlib import Path
 import chainlit as cl
 from dotenv import load_dotenv
+from groq import Groq
 from agent import run_agent
 from tools.memory import clear_memories
+from tools.profile import load_profile, apply_profile_update
 
 load_dotenv()
 
@@ -21,6 +23,47 @@ def _user_paths(nickname: str) -> tuple[str, str]:
     db_path = f"{DATA_DIR}/db/{nickname}.db"
     profile_path = f"{DATA_DIR}/profiles/{nickname}.json"
     return db_path, profile_path
+
+
+async def refresh_profile(history: list[dict], profile_path: str) -> None:
+    if not history:
+        return
+    current_profile = load_profile(profile_path)
+    formatted = "\n".join(
+        f"{m['role'].capitalize()}: {m['content']}"
+        for m in history
+        if isinstance(m.get("content"), str)
+    )
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
+    response = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        max_tokens=512,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are updating a traveler preference profile based on a conversation.\n"
+                    "Return ONLY a JSON object — no explanation, no markdown.\n"
+                    "Keep all existing fields and values unless the conversation clearly overrides them.\n"
+                    "Update values that have changed (e.g. 'actually I hate museums').\n"
+                    "Add new top-level keys for preferences discovered that don't fit existing "
+                    "categories (e.g. budget, pace, accommodation style, group size).\n"
+                    "Do not include trip-specific facts — those are stored separately as memories."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Current profile:\n{json.dumps(current_profile, indent=2)}\n\n"
+                    f"Conversation:\n{formatted}"
+                ),
+            },
+        ],
+    )
+    raw = response.choices[0].message.content or ""
+    updated = apply_profile_update(current_profile, raw)
+    if updated is not None:
+        Path(profile_path).write_text(json.dumps(updated, indent=2))
 
 
 @cl.on_chat_start
@@ -124,6 +167,9 @@ async def on_message(message: cl.Message):
         return
 
     if message.content.strip() == "/new":
+        history = cl.user_session.get("history", [])
+        if history and profile_path:
+            await refresh_profile(history, profile_path)
         if Path(db_path).exists():
             clear_memories(db_path=db_path)
         cl.user_session.set("history", [])
@@ -145,3 +191,11 @@ async def on_message(message: cl.Message):
 
     if itinerary_html:
         await cl.Message(content=itinerary_html).send()
+
+
+@cl.on_chat_end
+async def on_chat_end():
+    history = cl.user_session.get("history", [])
+    profile_path = cl.user_session.get("profile_path")
+    if history and profile_path:
+        await refresh_profile(history, profile_path)
