@@ -36,3 +36,21 @@ def test_profile_to_prompt_is_string():
 def test_load_profile_missing_file_returns_empty_dict():
     result = load_profile("/tmp/definitely_does_not_exist_chihiro_abc123.json")
     assert result == {}
+
+def test_profile_to_prompt_renders_dynamic_fields():
+    profile = {
+        "travelers": ["Rafaela"],
+        "interests": ["culture"],
+        "food": ["local"],
+        "not_into": [],
+        "budget": "mid-range",
+        "pace": ["relaxed", "slow"],
+    }
+    prompt = profile_to_prompt(profile)
+    assert "Budget: mid-range." in prompt
+    assert "Pace: relaxed, slow." in prompt
+
+def test_profile_to_prompt_ignores_no_extra_fields():
+    profile = {"travelers": ["Rafaela"], "interests": ["culture"], "food": [], "not_into": []}
+    prompt = profile_to_prompt(profile)
+    assert prompt.count("\n") == 3  # exactly 4 lines
