@@ -27,3 +27,13 @@ def profile_to_prompt(profile: dict) -> str:
             val = ", ".join(value) if isinstance(value, list) else str(value)
             lines.append(f"{label}: {val}.")
     return "\n".join(lines)
+
+
+def apply_profile_update(current_profile: dict, llm_response: str) -> dict | None:
+    try:
+        updated = json.loads(llm_response)
+        if not isinstance(updated, dict):
+            return None
+        return updated
+    except json.JSONDecodeError:
+        return None

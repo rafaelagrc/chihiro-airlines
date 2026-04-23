@@ -1,7 +1,7 @@
 import json
 import tempfile
 import os
-from tools.profile import load_profile, profile_to_prompt
+from tools.profile import load_profile, profile_to_prompt, apply_profile_update
 
 def make_test_profile(data: dict) -> str:
     f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
@@ -54,3 +54,19 @@ def test_profile_to_prompt_ignores_no_extra_fields():
     profile = {"travelers": ["Rafaela"], "interests": ["culture"], "food": [], "not_into": []}
     prompt = profile_to_prompt(profile)
     assert prompt.count("\n") == 3  # exactly 4 lines
+
+def test_apply_profile_update_valid_json_returns_updated_dict():
+    current = {"travelers": ["Rafaela"], "interests": ["culture"], "food": [], "not_into": []}
+    response = '{"travelers": ["Rafaela"], "interests": ["culture", "food"], "budget": "mid-range", "food": [], "not_into": []}'
+    result = apply_profile_update(current, response)
+    assert result is not None
+    assert "budget" in result
+    assert result["budget"] == "mid-range"
+
+def test_apply_profile_update_invalid_json_returns_none():
+    result = apply_profile_update({}, "this is not json at all")
+    assert result is None
+
+def test_apply_profile_update_non_dict_json_returns_none():
+    result = apply_profile_update({}, '["a", "list", "not", "a", "dict"]')
+    assert result is None
